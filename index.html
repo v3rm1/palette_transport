@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111418">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Palette Transport</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single column lab bench — stage on top, reference stack + printer-light console, convergence trace below */
+:root{
+  --bg:#eceff2; --surface:#f8f9fb; --ink:#14181d; --muted:#5a6370; --line:#cdd3da; --accent:#0a6a70; --accent-ink:#ffffff;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"IBM Plex Sans",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111418;--surface:#191d22;--ink:#e5e8eb;--muted:#97a0aa;--line:#2b3138;--accent:#52b9be;--accent-ink:#06191a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111418;--surface:#191d22;--ink:#e5e8eb;--muted:#97a0aa;--line:#2b3138;--accent:#52b9be;--accent-ink:#06191a;color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px;display:flex;flex-direction:column;gap:18px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(28px,7vw,40px);line-height:1.05;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font:600 13px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.sub{margin:6px 0 0;color:var(--muted);max-width:60ch}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.pick{position:relative;display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px;cursor:pointer;min-width:0}
+.pick:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.pick img,.ref img{width:52px;height:52px;object-fit:cover;border-radius:6px;flex:none;background:var(--line)}
+.pick b{display:block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.pick span,.ref .nm{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pick input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.refs{display:grid;gap:8px}
+.ref{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px}
+.ref .mid{min-width:0;display:grid;gap:2px}
+.ref .wl{display:grid;grid-template-columns:1fr 3.4em;gap:8px;align-items:center}
+.ref output{font-size:12px;text-align:right;color:var(--muted)}
+.x{border:1px solid var(--line);background:transparent;color:var(--muted);width:32px;height:32px;border-radius:6px;font:500 16px var(--mono);cursor:pointer}
+.x:disabled{opacity:.35;cursor:default}
+.add{border-style:dashed;justify-content:center;color:var(--accent);font-weight:600;font-size:14px;padding:12px}
+.stage{position:relative;border-radius:10px;overflow:hidden;background:var(--surface);border:1px solid var(--line);touch-action:pan-y}
+.stage canvas{display:block;width:100%;height:auto}
+#cvOrig{position:absolute;inset:0;width:100%;height:100%}
+.handle{position:absolute;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.35);pointer-events:none}
+.tag{position:absolute;top:8px;font:500 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;background:rgba(0,0,0,.55);color:#fff;padding:3px 6px;border-radius:4px;pointer-events:none}
+.busy{position:absolute;inset:auto 8px 8px auto;font:500 12px var(--mono);background:rgba(0,0,0,.6);color:#fff;padding:4px 8px;border-radius:4px}
+.console{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:14px}
+.row{display:grid;grid-template-columns:7.5em 1fr 4.2em;gap:10px;align-items:center}
+.row label,.row .lb{font-size:13px;color:var(--muted)}
+.row output{text-align:right;font-size:13px}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{font:500 13px var(--mono);padding:6px 10px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.grp{display:grid;gap:10px;padding-top:12px;border-top:1px solid var(--line)}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn{font:600 15px var(--body);padding:11px 18px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.trace,.save{display:grid;gap:8px}
+.trace svg{width:100%;height:auto;display:block}
+.note{font-size:13px;color:var(--muted);margin:0;max-width:65ch}
+.save img{width:100%;border-radius:8px;border:1px solid var(--line)}
+.stale{color:var(--accent);font-weight:600}
+@media (max-width:420px){.row{grid-template-columns:6.4em 1fr 3.8em}}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Palette Transport</h1>
+    <p class="sub">Moves your photo's colors onto a weighted blend of one or more reference photos, using sliced optimal transport in CIELAB.</p>
+  </header>
+
+  <label class="pick"><img id="thSrc" alt=""><div style="min-width:0"><b>Photo</b><span id="nmSrc">Sample landscape</span></div><input id="fSrc" type="file" accept="image/*"></label>
+
+  <div class="stage" id="stage">
+    <canvas id="cvOut"></canvas>
+    <canvas id="cvOrig"></canvas>
+    <div class="handle" id="handle"></div>
+    <span class="tag" style="left:8px">Before</span><span class="tag" style="right:8px">After</span>
+    <span class="busy mono" id="busy" hidden></span>
+  </div>
+
+  <section class="refs" aria-labelledby="hRefs">
+    <h2 id="hRefs">References · weights λ (sum to 1)</h2>
+    <div id="refList" class="refs"></div>
+    <label class="pick add" id="addRef">+ Add reference (up to 4)<input id="fRef" type="file" accept="image/*"></label>
+  </section>
+
+  <section class="console" aria-label="Controls">
+    <div class="row"><label for="kIt">Iterations K</label><input id="kIt" type="range" min="2" max="40" value="16"><output class="mono" id="oIt">16</output></div>
+    <div class="row"><span class="lb">Blend</span><div class="seg" id="blend"><button data-v="mix" aria-pressed="true">Mixture</button><button data-v="bary" aria-pressed="false">Barycenter</button></div><span></span></div>
+    <p class="note">Mixture: λ of the pixels take each reference's colors (Σλⱼμⱼ). Barycenter: every pixel takes the λ-average of the references' matched colors (McCann interpolation), which mutes contrast between references.</p>
+    <div class="row"><span class="lb">Start from</span><div class="seg" id="ini"><button data-v="1" aria-pressed="true">Gaussian OT</button><button data-v="0" aria-pressed="false">Identity</button></div><span></span></div>
+    <div class="row"><span class="lb">Working size</span><div class="seg" id="res"><button data-v="1024" aria-pressed="true">1024</button><button data-v="2048" aria-pressed="false">2048</button><button data-v="3072" aria-pressed="false">3072</button></div><span></span></div>
+    <div class="actions"><button class="btn" id="run">Transfer colors</button><span class="note" id="dirty" style="align-self:center"></span></div>
+    <div class="grp">
+      <div class="row"><label for="kAl">Strength α</label><input id="kAl" type="range" min="0" max="100" value="100"><output class="mono" id="oAl">1.00</output></div>
+      <div class="row"><label for="kLu">Keep lightness</label><input id="kLu" type="range" min="0" max="100" value="0"><output class="mono" id="oLu">0.00</output></div>
+      <div class="row"><span class="lb">Gamut</span><div class="seg" id="gmt"><button data-v="map" aria-pressed="true">Keep hue</button><button data-v="clip" aria-pressed="false">Clip</button></div><span></span></div>
+      <div class="row"><label for="kSm">Smooth map r</label><input id="kSm" type="range" min="0" max="24" value="6"><output class="mono" id="oSm">6 px</output></div>
+      <div class="row"><label for="kEp">Edge ε</label><input id="kEp" type="range" min="-5" max="-1" step="0.5" value="-3"><output class="mono" id="oEp">1e-3</output></div>
+      <p class="note">These re-render without re-solving. Smoothing runs a guided filter on the displacement field T(x)−x, guided by source lightness, so flat regions like sky stop banding while edges keep their colors.</p>
+    </div>
+    <div class="actions"><button class="btn ghost" id="mk">Save or share</button></div>
+  </section>
+
+  <section class="trace">
+    <h2>Convergence</h2>
+    <svg id="chart" viewBox="0 0 360 130" role="img" aria-label="Sliced Wasserstein distance per iteration"></svg>
+    <p class="note mono" id="stats"></p>
+    <p class="note mono" id="gamut"></p>
+    <p class="note">Gaussian OT applies the closed-form map between Gaussian fits first: T(x) = μ̄ + A(x − μₓ), onto the Gaussian W₂ barycenter of the references, or onto the exact mean and covariance of the mixture. The sliced iterations then only correct the non-Gaussian residual. The dashed line is the previous run, for comparison.</p>
+  </section>
+
+  <section class="save" id="save" hidden>
+    <h2>Save</h2>
+    <p class="note">Long-press the image and choose Save to Photos, then open it in Snapseed if you want to keep editing.</p>
+    <img id="outImg" alt="Color-graded result">
+  </section>
+</div>
+
+<script id="wsrc" type="text/js-worker">
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function rot(r){
+  const g=()=>{let u=r()||1e-12,v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+  const V=[[g(),g(),g()],[g(),g(),g()],[g(),g(),g()]];
+  for(let i=0;i<3;i++){for(let j=0;j<i;j++){const d=V[i][0]*V[j][0]+V[i][1]*V[j][1]+V[i][2]*V[j][2];for(let k=0;k<3;k++)V[i][k]-=d*V[j][k]}
+    const n=Math.hypot(V[i][0],V[i][1],V[i][2]);for(let k=0;k<3;k++)V[i][k]/=n}
+  return V;
+}
+// ---- 3x3 symmetric linear algebra (row-major length-9 arrays) ----
+function eig3(A){const a=A.slice(),V=[1,0,0,0,1,0,0,0,1];
+  for(let sw=0;sw<30;sw++){const off=a[1]*a[1]+a[2]*a[2]+a[5]*a[5];if(off<1e-22)break;
+    for(const [p,q] of [[0,1],[0,2],[1,2]]){const apq=a[3*p+q];if(Math.abs(apq)<1e-30)continue;
+      const th=(a[3*q+q]-a[3*p+p])/(2*apq),t=Math.sign(th||1)/(Math.abs(th)+Math.sqrt(th*th+1)),c=1/Math.sqrt(t*t+1),s=t*c;
+      for(let k=0;k<3;k++){const akp=a[3*k+p],akq=a[3*k+q];a[3*k+p]=c*akp-s*akq;a[3*k+q]=s*akp+c*akq}
+      for(let k=0;k<3;k++){const apk=a[3*p+k],aqk=a[3*q+k];a[3*p+k]=c*apk-s*aqk;a[3*q+k]=s*apk+c*aqk}
+      for(let k=0;k<3;k++){const vkp=V[3*k+p],vkq=V[3*k+q];V[3*k+p]=c*vkp-s*vkq;V[3*k+q]=s*vkp+c*vkq}}}
+  return {w:[a[0],a[4],a[8]],V}}
+function fsym(A,f){const {w,V}=eig3(A),o=new Array(9).fill(0);for(let i=0;i<3;i++)for(let j=0;j<3;j++){let s=0;for(let k=0;k<3;k++)s+=V[3*i+k]*f(w[k])*V[3*j+k];o[3*i+j]=s}return o}
+function mm(A,B){const o=new Array(9);for(let i=0;i<3;i++)for(let j=0;j<3;j++)o[3*i+j]=A[3*i]*B[j]+A[3*i+1]*B[3+j]+A[3*i+2]*B[6+j];return o}
+const sqm=A=>fsym(A,x=>Math.sqrt(Math.max(x,0))), isqm=A=>fsym(A,x=>1/Math.sqrt(Math.max(x,1e-6)));
+function moments(Z,n){const mu=[0,0,0],C=new Array(9).fill(0);for(let i=0,q=0;i<n;i++,q+=3){mu[0]+=Z[q];mu[1]+=Z[q+1];mu[2]+=Z[q+2]}for(let c=0;c<3;c++)mu[c]/=n;
+  for(let i=0,q=0;i<n;i++,q+=3){const a=Z[q]-mu[0],b=Z[q+1]-mu[1],c=Z[q+2]-mu[2];C[0]+=a*a;C[1]+=a*b;C[2]+=a*c;C[4]+=b*b;C[5]+=b*c;C[8]+=c*c}
+  C[3]=C[1];C[6]=C[2];C[7]=C[5];for(let k=0;k<9;k++)C[k]/=n;C[0]+=1e-3;C[4]+=1e-3;C[8]+=1e-3;return {mu,C}}
+// Gaussian W2 barycenter: Alvarez-Esteban et al. (2016) fixed point S <- S^{-1/2}(sum_j l_j (S^{1/2} C_j S^{1/2})^{1/2})^2 S^{-1/2}
+function gaussBary(G,lam){const mu=[0,0,0];let S=new Array(9).fill(0);G.forEach((g,j)=>{for(let c=0;c<3;c++)mu[c]+=lam[j]*g.mu[c];for(let k=0;k<9;k++)S[k]+=lam[j]*g.C[k]});
+  if(G.length===1)return {mu,C:G[0].C};
+  for(let t=0;t<100;t++){const Sh=sqm(S),Si=isqm(S),M=new Array(9).fill(0);G.forEach((g,j)=>{const R=sqm(mm(mm(Sh,g.C),Sh));for(let k=0;k<9;k++)M[k]+=lam[j]*R[k]});
+    const Sn=mm(mm(Si,mm(M,M)),Si);let d=0;for(let k=0;k<9;k++){d+=Math.abs(Sn[k]-S[k]);}S=Sn.map((v,k)=>(v+Sn[3*(k%3)+((k/3)|0)])/2);if(d<1e-9)break}
+  return {mu,C:S}}
+const B=4096;
+var handler=e=>{
+  const {X,n,refs,K,seed,init,mode}=e.data, r=rng(seed), J=refs.length, px=new Float32Array(n), trace=[];
+  const hx=new Float64Array(B),cx=new Float64Array(B+1),tm=new Float64Array(B+1),cm=new Float64Array(B+1);
+  // tm[k] += wt * G^{-1}(F_X(edge_k)) for a target CDF G given at bin edges; two-pointer since F_X(edge_k) is nondecreasing
+  const invert=(c,lo,w,wt)=>{let j=0;for(let k=0;k<=B;k++){const u=Math.min(cx[k],1);while(j<B-1&&c[j+1]<u)j++;const den=c[j+1]-c[j];tm[k]+=wt*(lo+w*(j+(den>0?Math.min(1,Math.max(0,(u-c[j])/den)):0.5)))}};
+  const P=refs.map(R=>({Y:R.Y,m:R.m,w:R.w,py:new Float32Array(R.m),h:new Float64Array(B),c:new Float64Array(B+1)}));
+  let gInfo=null;
+  if(init){// closed-form Monge map between Gaussian fits: T(x)=mu_b + A(x-mu_x), A=Sx^{-1/2}(Sx^{1/2} Sb Sx^{1/2})^{1/2}Sx^{-1/2}
+    const G=P.map(p=>moments(p.Y,p.m)),lam=P.map(p=>p.w);
+    // target Gaussian: W2 barycenter, or exact first two moments of the mixture Σλ_j μ_j
+    const mixMom=()=>{const mu=[0,0,0],C=new Array(9).fill(0);G.forEach((g,j)=>{for(let c=0;c<3;c++)mu[c]+=lam[j]*g.mu[c]});
+      G.forEach((g,j)=>{for(let a=0;a<3;a++)for(let b=0;b<3;b++)C[3*a+b]+=lam[j]*(g.C[3*a+b]+(g.mu[a]-mu[a])*(g.mu[b]-mu[b]))});return {mu,C}};
+    const gx=moments(X,n),gb=mode==='mix'?mixMom():gaussBary(G,lam),Sh=sqm(gx.C),Si=isqm(gx.C),A=mm(mm(Si,sqm(mm(mm(Sh,gb.C),Sh))),Si);
+    for(let i=0,q=0;i<n;i++,q+=3){const a=X[q]-gx.mu[0],b=X[q+1]-gx.mu[1],c=X[q+2]-gx.mu[2];X[q]=gb.mu[0]+A[0]*a+A[1]*b+A[2]*c;X[q+1]=gb.mu[1]+A[3]*a+A[4]*b+A[5]*c;X[q+2]=gb.mu[2]+A[6]*a+A[7]*b+A[8]*c}
+    gInfo={det:A[0]*(A[4]*A[8]-A[5]*A[7])-A[1]*(A[3]*A[8]-A[5]*A[6])+A[2]*(A[3]*A[7]-A[4]*A[6])};
+  }
+  let Rm=rot(r);
+  for(let it=0;it<K;it++){
+    let sw=0;
+    for(let d=0;d<3;d++){
+      const t0=Rm[d][0],t1=Rm[d][1],t2=Rm[d][2]; let lo=Infinity,hi=-Infinity;
+      for(let i=0,j=0;i<n;i++,j+=3){const v=X[j]*t0+X[j+1]*t1+X[j+2]*t2;px[i]=v;if(v<lo)lo=v;if(v>hi)hi=v}
+      for(const p of P){const Y=p.Y,py=p.py;for(let i=0,j=0;i<p.m;i++,j+=3){const v=Y[j]*t0+Y[j+1]*t1+Y[j+2]*t2;py[i]=v;if(v<lo)lo=v;if(v>hi)hi=v}}
+      const w=(hi-lo)/B||1e-6; hx.fill(0);
+      for(let i=0;i<n;i++){let b=((px[i]-lo)/w)|0;if(b>=B)b=B-1;hx[b]++}
+      cx[0]=0;for(let b=0;b<B;b++)cx[b+1]=cx[b]+hx[b]/n;
+      tm.fill(0);
+      // barycenter: F_bar^{-1}(u) = Σ λ_j F_j^{-1}(u)  (quantile average, exact W2 barycenter on R)
+      // mixture:    F_mix(t)    = Σ λ_j F_j(t)       (CDF average, then a single inversion)
+      if(mode==='mix')cm.fill(0);
+      for(const p of P){
+        const h=p.h,c=p.c,py=p.py,m=p.m; h.fill(0);
+        for(let i=0;i<m;i++){let b=((py[i]-lo)/w)|0;if(b>=B)b=B-1;h[b]++}
+        c[0]=0;for(let b=0;b<B;b++)c[b+1]=c[b]+h[b]/m;
+        if(mode==='mix'){for(let k=0;k<=B;k++)cm[k]+=p.w*c[k];continue}
+        invert(c,lo,w,p.w);
+      }
+      if(mode==='mix')invert(cm,lo,w,1);
+      let s=0;
+      for(let i=0,q=0;i<n;i++,q+=3){const f=(px[i]-lo)/w;let b=f|0;if(b>=B)b=B-1;const tt=f-b,y=tm[b]+(tm[b+1]-tm[b])*tt,dd=y-px[i];s+=dd*dd;X[q]+=dd*t0;X[q+1]+=dd*t1;X[q+2]+=dd*t2}
+      sw+=s/n;
+    }
+    trace.push(Math.sqrt(sw/3));
+    Rm=rot(r);
+    self.postMessage({type:'prog',it:it+1,K,trace});
+  }
+  self.postMessage({type:'done',X,trace,gInfo},[X.buffer]);
+};
+self.onmessage=handler;
+</script>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const S={src:null,refs:[],X0:null,X:null,D:null,Ds:null,w:0,h:0,res:1024,worker:null,t0:0,smKey:''};
+// ---------- colour science: sRGB(D65) <-> CIELAB ----------
+const LIN=new Float32Array(256);for(let i=0;i<256;i++){const c=i/255;LIN[i]=c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4)}
+const GN=4096,GAM=new Uint8ClampedArray(GN+1);for(let i=0;i<=GN;i++){const c=i/GN;GAM[i]=Math.round(255*(c<=0.0031308?12.92*c:1.055*Math.pow(c,1/2.4)-0.055))}
+const Xn=0.95047,Zn=1.08883,E=0.008856,KK=7.787,O=16/116;
+const f=t=>t>E?Math.cbrt(t):KK*t+O, fi=t=>{const c=t*t*t;return c>E?c:(t-O)/KK};
+function toLab(data,n){const L=new Float32Array(n*3);for(let i=0,p=0,q=0;i<n;i++,p+=4,q+=3){const r=LIN[data[p]],g=LIN[data[p+1]],b=LIN[data[p+2]];
+  const fx=f((0.4124564*r+0.3575761*g+0.1804375*b)/Xn),fy=f(0.2126729*r+0.7151522*g+0.0721750*b),fz=f((0.0193339*r+0.1191920*g+0.9503041*b)/Zn);
+  L[q]=116*fy-16;L[q+1]=500*(fx-fy);L[q+2]=200*(fy-fz)}return L}
+const enc=v=>GAM[v<=0?0:v>=1?GN:(v*GN+0.5)|0];
+// ---------- guided filter (He et al.), grayscale guide, O(n) box sums ----------
+function box(src,w,h,r,out,tmp){
+  for(let y=0;y<h;y++){const o=y*w;let s=0;for(let x=0;x<=Math.min(r,w-1);x++)s+=src[o+x];
+    for(let x=0;x<w;x++){const a=x-r,b=x+r;tmp[o+x]=s/(Math.min(b,w-1)-Math.max(a,0)+1);if(b+1<w)s+=src[o+b+1];if(a>=0)s-=src[o+a]}}
+  for(let x=0;x<w;x++){let s=0;for(let y=0;y<=Math.min(r,h-1);y++)s+=tmp[y*w+x];
+    for(let y=0;y<h;y++){const a=y-r,b=y+r;out[y*w+x]=s/(Math.min(b,h-1)-Math.max(a,0)+1);if(b+1<h)s+=tmp[(b+1)*w+x];if(a>=0)s-=tmp[a*w+x]}}
+}
+function smoothD(){
+  const r=+$('kSm').value,eps=Math.pow(10,+$('kEp').value),key=r+'|'+eps;
+  if(S.smKey===key&&S.Ds)return; S.smKey=key;
+  const n=S.w*S.h,D=S.D;
+  if(r===0){S.Ds=D;return}
+  const w=S.w,h=S.h,I=new Float32Array(n),mI=new Float32Array(n),vI=new Float32Array(n),tmp=new Float32Array(n),t1=new Float32Array(n),p=new Float32Array(n),mp=new Float32Array(n),mIp=new Float32Array(n),A=new Float32Array(n),Bv=new Float32Array(n);
+  for(let i=0;i<n;i++)I[i]=S.X0[3*i]/100;
+  box(I,w,h,r,mI,tmp);for(let i=0;i<n;i++)t1[i]=I[i]*I[i];box(t1,w,h,r,vI,tmp);for(let i=0;i<n;i++)vI[i]-=mI[i]*mI[i];
+  const Ds=new Float32Array(n*3);
+  for(let c=0;c<3;c++){
+    for(let i=0;i<n;i++)p[i]=D[3*i+c];
+    box(p,w,h,r,mp,tmp);for(let i=0;i<n;i++)t1[i]=I[i]*p[i];box(t1,w,h,r,mIp,tmp);
+    for(let i=0;i<n;i++){const a=(mIp[i]-mI[i]*mp[i])/(vI[i]+eps);A[i]=a;Bv[i]=mp[i]-a*mI[i]}
+    box(A,w,h,r,t1,tmp);box(Bv,w,h,r,mp,tmp);
+    for(let i=0;i<n;i++)Ds[3*i+c]=t1[i]*I[i]+mp[i];
+  }
+  S.Ds=Ds;
+}
+function render(){
+  if(!S.D)return; smoothD();
+  const n=S.w*S.h,a=$('kAl').value/100,lk=$('kLu').value/100,cv=$('cvOut'),ctx=cv.getContext('2d'),img=ctx.createImageData(S.w,S.h),d=img.data,D=S.Ds,X0=S.X0,tol=0.004,gm=S.gamut!=='clip';
+  let clip=0,cs=0;
+  for(let i=0,q=0,p=0;i<n;i++,q+=3,p+=4){
+    const Lv=X0[q]+a*(1-lk)*D[q], A=X0[q+1]+a*D[q+1], Bv=X0[q+2]+a*D[q+2];
+    const fy=(Lv+16)/116,x=Xn*fi(fy+A/500),y=fi(fy),z=Zn*fi(fy-Bv/200);
+    let R=3.2404542*x-1.5371385*y-0.4985314*z,G=-0.9692660*x+1.8760108*y+0.0415560*z,Bl=0.0556434*x-0.2040259*y+1.0572252*z;
+    if(R<-tol||R>1+tol||G<-tol||G>1+tol||Bl<-tol||Bl>1+tol){
+      clip++;
+      if(gm){// project onto sRGB gamut at constant L* and hue: largest s∈[0,1] with lab2rgb(L, s·a, s·b) ∈ [0,1]^3
+        const Lc=Lv<0?0:Lv>100?100:Lv,fy2=(Lc+16)/116,y2=fi(fy2);let lo=0,hi=1;
+        for(let t=0;t<14;t++){const s=(lo+hi)/2,x2=Xn*fi(fy2+s*A/500),z2=Zn*fi(fy2-s*Bv/200),
+          r2=3.2404542*x2-1.5371385*y2-0.4985314*z2,g2=-0.9692660*x2+1.8760108*y2+0.0415560*z2,b2=0.0556434*x2-0.2040259*y2+1.0572252*z2;
+          if(r2<0||r2>1||g2<0||g2>1||b2<0||b2>1)hi=s;else{lo=s;R=r2;G=g2;Bl=b2}}
+        if(lo===0){R=G=Bl=y2}// achromatic axis: X=Xn·y, Z=Zn·y maps to r=g=b=y
+        cs+=1-lo;
+      }
+    }
+    d[p]=enc(R);d[p+1]=enc(G);d[p+2]=enc(Bl);d[p+3]=255}
+  cv.width=S.w;cv.height=S.h;ctx.putImageData(img,0,0); $('save').hidden=true;
+  $('gamut').textContent=gm?`Out of sRGB gamut: ${(100*clip/n).toFixed(2)}% of pixels, mapped at constant L* and hue · mean chroma reduction on those ${clip?(100*cs/clip).toFixed(1):'0.0'}%`:`Out of sRGB gamut, clipped per channel: ${(100*clip/n).toFixed(2)}% of pixels (hue shifts)`;
+}
+let rq=0;const schedule=()=>{cancelAnimationFrame(rq);rq=requestAnimationFrame(render)};
+// ---------- image I/O ----------
+async function bitmap(file){try{return await createImageBitmap(file,{imageOrientation:'from-image'})}catch(e){const u=URL.createObjectURL(file);const im=new Image();im.src=u;await im.decode();return im}}
+function rasterize(bm,max){const s=Math.min(1,max/Math.max(bm.width,bm.height)),w=Math.max(1,Math.round(bm.width*s)),h=Math.max(1,Math.round(bm.height*s)),c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(bm,0,0,w,h);return {c,w,h,data:x.getImageData(0,0,w,h).data}}
+function thumbURL(src){const w=src.width,h=src.height,t=document.createElement('canvas');t.width=t.height=104;const x=t.getContext('2d'),s=Math.max(104/w,104/h);x.drawImage(src,(104-w*s)/2,(104-h*s)/2,w*s,h*s);return t.toDataURL('image/jpeg',.8)}
+// ---------- procedural samples ----------
+function sample(kind){const c=document.createElement('canvas'),w=1200,h=800;c.width=w;c.height=h;const x=c.getContext('2d');let g;
+  if(kind==='src'){g=x.createLinearGradient(0,0,0,h*.55);g.addColorStop(0,'#5d8fc9');g.addColorStop(1,'#cfe0ee');x.fillStyle=g;x.fillRect(0,0,w,h);
+    x.fillStyle='#e9eef2';for(let i=0;i<7;i++){x.beginPath();x.ellipse(150+i*160,120+(i%3)*40,90,26,0,0,7);x.fill()}
+    x.fillStyle='#6f8f6a';x.beginPath();x.moveTo(0,470);for(let i=0;i<=12;i++)x.lineTo(i*100,430-Math.sin(i*1.3)*60);x.lineTo(w,h);x.lineTo(0,h);x.fill();
+    g=x.createLinearGradient(0,500,0,h);g.addColorStop(0,'#5f8b3e');g.addColorStop(1,'#2f4d22');x.fillStyle=g;x.beginPath();x.moveTo(0,560);for(let i=0;i<=12;i++)x.lineTo(i*100,530+Math.cos(i*.9)*30);x.lineTo(w,h);x.lineTo(0,h);x.fill();
+    x.fillStyle='#8a8d8f';x.beginPath();x.moveTo(560,560);x.lineTo(640,560);x.lineTo(900,h);x.lineTo(300,h);x.fill();
+    x.fillStyle='#b23a2e';x.fillRect(820,470,90,70);x.fillStyle='#3a2a22';x.beginPath();x.moveTo(810,470);x.lineTo(865,430);x.lineTo(920,470);x.fill();
+  }else if(kind==='dusk'){g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#2b2350');g.addColorStop(.35,'#8a3b6b');g.addColorStop(.6,'#f08a4b');g.addColorStop(.72,'#ffd08a');g.addColorStop(.73,'#1d1830');g.addColorStop(1,'#0e0b18');x.fillStyle=g;x.fillRect(0,0,w,h);
+    x.fillStyle='rgba(255,230,180,.9)';x.beginPath();x.arc(820,560,70,0,7);x.fill();
+    x.fillStyle='rgba(60,30,70,.55)';for(let i=0;i<6;i++){x.beginPath();x.ellipse(200+i*180,200+(i%2)*80,160,22,0,0,7);x.fill()}
+  }else{g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,'#c9d6df');g.addColorStop(.45,'#8fa9bb');g.addColorStop(.46,'#2f4a5c');g.addColorStop(1,'#16242e');x.fillStyle=g;x.fillRect(0,0,w,h);
+    x.fillStyle='#eef3f6';x.beginPath();x.moveTo(0,370);for(let i=0;i<=8;i++)x.lineTo(i*150,(i%2?200:330));x.lineTo(w,370);x.fill();
+    x.fillStyle='#4d6676';x.beginPath();x.moveTo(0,370);for(let i=0;i<=8;i++)x.lineTo(i*150,(i%2?300:360));x.lineTo(w,370);x.fill();
+    x.fillStyle='rgba(200,215,225,.25)';for(let i=0;i<14;i++)x.fillRect(0,400+i*28,w,3)}
+  const id=x.getImageData(0,0,w,h),d=id.data;for(let i=0;i<d.length;i+=4){const n=(Math.random()-.5)*14;d[i]+=n;d[i+1]+=n;d[i+2]+=n}x.putImageData(id,0,0);return c}
+// ---------- reference stack ----------
+// weights live on the simplex: r.w are λ_j directly, Σλ_j = 1 always
+function normalize(){const s=S.refs.reduce((a,r)=>a+r.w,0);S.refs.forEach(r=>r.w=s>0?r.w/s:1/S.refs.length)}
+function lambdas(){return S.refs.map(r=>r.w)}
+function setWeight(i,v){// fix λ_i = v, rescale the others proportionally onto 1 - v
+  const J=S.refs.length;if(J<2){S.refs[0].w=1;return}
+  const rest=S.refs.reduce((a,r,j)=>j===i?a:a+r.w,0);
+  S.refs.forEach((r,j)=>{if(j===i)r.w=v;else r.w=rest>1e-9?r.w*(1-v)/rest:(1-v)/(J-1)});
+}
+function syncWeights(skip){S.refs.forEach((r,j)=>{const el=$('w'+j);if(el&&j!==skip)el.value=Math.round(r.w*100);const o=$('o'+j);if(o)o.textContent='λ='+r.w.toFixed(2)})}
+function drawRefs(){
+  normalize();const list=$('refList');list.innerHTML='';const one=S.refs.length<2;
+  S.refs.forEach((r,i)=>{const el=document.createElement('div');el.className='ref';
+    el.innerHTML=`<img alt="" src="${r.thumb}"><div class="mid"><span class="nm">${r.name.replace(/[<&]/g,'')}</span><div class="wl"><input type="range" min="0" max="100" value="${Math.round(r.w*100)}" id="w${i}" ${one?'disabled':''} aria-label="Weight for ${r.name.replace(/"/g,'')}"><output class="mono" id="o${i}">λ=${r.w.toFixed(2)}</output></div></div><button class="x" aria-label="Remove reference" ${one?'disabled':''}>×</button>`;
+    el.querySelector('input').oninput=e=>{setWeight(i,e.target.value/100);syncWeights(i);markDirty();queueSolve(450)};
+    el.querySelector('input').onchange=()=>queueSolve(0);
+    el.querySelector('.x').onclick=()=>{S.refs.splice(i,1);drawRefs();solve()};
+    list.appendChild(el)});
+  $('addRef').hidden=S.refs.length>=4;
+}
+function markDirty(){$('dirty').innerHTML='<span class="stale">Re-solving…</span>'}
+let qs=0;function queueSolve(ms){clearTimeout(qs);qs=setTimeout(solve,typeof ms==='number'?ms:200)}
+// ---------- solve ----------
+const W=URL.createObjectURL(new Blob([$('wsrc').textContent],{type:'text/javascript'}));
+function solve(){
+  if(!S.src||!S.refs.length)return; if(S.worker)S.worker.terminate();
+  $('dirty').textContent='';
+  const A=rasterize(S.src,S.res);S.w=A.w;S.h=A.h;
+  const o=$('cvOrig');o.width=A.w;o.height=A.h;o.getContext('2d').drawImage(A.c,0,0);
+  const cv=$('cvOut');if(!S.D||cv.width!==A.w||cv.height!==A.h){cv.width=A.w;cv.height=A.h;cv.getContext('2d').drawImage(A.c,0,0)}
+  const n=A.w*A.h;S.X0=toLab(A.data,n);const X=S.X0.slice(),L=lambdas();
+  const refs=S.refs.map((r,i)=>{const R=rasterize(r.bm,560);return {Y:toLab(R.data,R.w*R.h),m:R.w*R.h,w:L[i]}}).filter(r=>r.w>0);
+  const K=+$('kIt').value;$('run').disabled=true;$('busy').hidden=false;$('busy').textContent='0/'+K;S.t0=performance.now();
+  const wk=S.worker=new Worker(W);
+  const init=S.init,mode=S.mode,label=`${mode==='mix'?'mixture':'barycenter'}, ${init?'Gaussian OT':'identity'} start, K=${K}`;
+  wk.onmessage=e=>{const d=e.data;if(d.type==='prog'){$('busy').textContent=d.it+'/'+d.K;chart(d.trace,d.K)}else{
+    const D=new Float32Array(n*3);for(let i=0;i<n*3;i++)D[i]=d.X[i]-S.X0[i];S.D=D;S.Ds=null;S.smKey='';render();chart(d.trace,K);
+    const ms=performance.now()-S.t0,fin=d.trace[d.trace.length-1];
+    $('stats').textContent=`This run: ${label} · n=${n.toLocaleString()} px · J=${refs.length}, λ=(${refs.map(r=>r.w.toFixed(2)).join(', ')}) · ${(ms/1000).toFixed(2)} s · final step ${fin.toFixed(3)} ΔE`+(d.gInfo?` · det A=${d.gInfo.det.toFixed(3)}`:'')+(S.prev?` · previous: ${S.prev.label}, ${S.prev.trace[S.prev.trace.length-1].toFixed(3)} ΔE`:'');
+    S.prevNext={trace:d.trace,label,K};
+    $('busy').hidden=true;$('run').disabled=false;wk.terminate();S.worker=null}};
+  if(S.prevNext){S.prev=S.prevNext;S.prevNext=null}
+  wk.postMessage({X,n,refs,K,init,mode,seed:(Math.random()*1e9)|0},[X.buffer,...refs.map(r=>r.Y.buffer)]);
+}
+// ---------- convergence chart ----------
+function chart(tr,K){const sv=$('chart'),L=38,Rt=352,T=10,Bt=104,pv=S.prev,KK2=Math.max(K,pv?pv.K:0),mx=Math.max(...tr,...(pv?pv.trace:[]),1e-6);
+  const xs=i=>L+(Rt-L)*(KK2>1?i/(KK2-1):0),ys=v=>Bt-(Bt-T)*Math.min(v,mx)/mx;K=KK2;
+  let s=`<g stroke="var(--line)" stroke-width="1"><line x1="${L}" y1="${T}" x2="${Rt}" y2="${T}"/><line x1="${L}" y1="${(T+Bt)/2}" x2="${Rt}" y2="${(T+Bt)/2}"/><line x1="${L}" y1="${Bt}" x2="${Rt}" y2="${Bt}"/></g>`;
+  s+=`<g fill="var(--muted)" font-family="IBM Plex Mono,monospace" font-size="10"><text x="${L-6}" y="${T+3}" text-anchor="end">${mx.toFixed(1)}</text><text x="${L-6}" y="${Bt+3}" text-anchor="end">0</text><text x="${L}" y="${Bt+16}">k=1</text><text x="${Rt}" y="${Bt+16}" text-anchor="end">k=${K}</text><text x="${(L+Rt)/2}" y="${Bt+16}" text-anchor="middle">√SW₂² per iteration (ΔE units)</text></g>`;
+  if(pv)s+=`<polyline points="${pv.trace.map((v,i)=>xs(i).toFixed(1)+','+ys(v).toFixed(1)).join(' ')}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  const pts=tr.map((v,i)=>xs(i).toFixed(1)+','+ys(v).toFixed(1)).join(' ');
+  s+=`<polygon points="${xs(0)},${Bt} ${pts} ${xs(tr.length-1)},${Bt}" fill="var(--accent)" fill-opacity=".12"/><polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+  const e=tr.length-1;s+=`<circle cx="${xs(e)}" cy="${ys(tr[e])}" r="3.5" fill="var(--accent)"/>`;sv.innerHTML=s}
+// ---------- before/after scrubber ----------
+function setSplit(v){v=Math.min(1,Math.max(0,v));$('cvOrig').style.clipPath=`inset(0 ${(1-v)*100}% 0 0)`;$('handle').style.left=`calc(${v*100}% - 1px)`}
+const st=$('stage');let drag=false;const mv=e=>{const r=st.getBoundingClientRect();setSplit((e.clientX-r.left)/r.width)};
+st.addEventListener('pointerdown',e=>{drag=true;st.setPointerCapture(e.pointerId);mv(e)});st.addEventListener('pointermove',e=>{if(drag)mv(e)});st.addEventListener('pointerup',()=>drag=false);setSplit(.5);
+// ---------- wiring ----------
+$('kIt').oninput=e=>$('oIt').textContent=e.target.value;
+$('kAl').oninput=e=>{$('oAl').textContent=(e.target.value/100).toFixed(2);schedule()};
+$('kLu').oninput=e=>{$('oLu').textContent=(e.target.value/100).toFixed(2);schedule()};
+$('kSm').oninput=e=>{$('oSm').textContent=e.target.value+' px';schedule()};
+$('kEp').oninput=e=>{$('oEp').textContent='1e'+e.target.value;schedule()};
+$('res').onclick=e=>{const b=e.target.closest('button');if(!b)return;[...$('res').children].forEach(x=>x.setAttribute('aria-pressed',x===b));S.res=+b.dataset.v;queueSolve()};
+$('run').onclick=solve;
+S.init=true;$('ini').onclick=e=>{const b=e.target.closest('button');if(!b)return;[...$('ini').children].forEach(x=>x.setAttribute('aria-pressed',x===b));S.init=b.dataset.v==='1';queueSolve()};
+$('kIt').onchange=()=>queueSolve();
+S.gamut='map';$('gmt').onclick=e=>{const b=e.target.closest('button');if(!b)return;[...$('gmt').children].forEach(x=>x.setAttribute('aria-pressed',x===b));S.gamut=b.dataset.v;schedule()};
+S.mode='mix';$('blend').onclick=e=>{const b=e.target.closest('button');if(!b)return;[...$('blend').children].forEach(x=>x.setAttribute('aria-pressed',x===b));S.mode=b.dataset.v;queueSolve()};
+// Save/share, in order: native app (Capacitor Filesystem + Share sheet) → Web Share with files (installed web app) → long-press fallback
+const b64=b=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(b)});
+function fallbackSave(b){$('outImg').src=URL.createObjectURL(b);$('save').hidden=false;$('save').scrollIntoView({behavior:'smooth'})}
+$('mk').onclick=()=>{$('cvOut').toBlob(async b=>{if(!b)return;const name=`palette-transport-${Date.now()}.jpg`,C=window.Capacitor;
+  if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins.Share){try{const w=await C.Plugins.Filesystem.writeFile({path:name,data:await b64(b),directory:'CACHE'});await C.Plugins.Share.share({title:'Palette Transport',files:[w.uri],dialogTitle:'Save or open in…'});return}catch(e){if(/cancel/i.test(String(e&&e.message)))return}}
+  try{const f=new File([b],name,{type:'image/jpeg'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Palette Transport'});return}}catch(e){if(e&&e.name==='AbortError')return}
+  fallbackSave(b)},'image/jpeg',.94)};
+$('fSrc').onchange=async e=>{const fl=e.target.files[0];if(!fl)return;S.src=await bitmap(fl);$('thSrc').src=thumbURL(S.src);$('nmSrc').textContent=fl.name||'Photo';S.D=null;solve();e.target.value=''};
+$('fRef').onchange=async e=>{const fl=e.target.files[0];if(!fl||S.refs.length>=4)return;const bm=await bitmap(fl);const J=S.refs.length;S.refs.forEach(r=>r.w*=J/(J+1));S.refs.push({bm,name:fl.name||'Reference',w:1/(J+1),thumb:thumbURL(bm)});drawRefs();solve();e.target.value=''};
+// boot with marked samples: barycenter of two references
+S.src=sample('src');$('thSrc').src=thumbURL(S.src);
+for(const [k,nm,w] of [['dusk','Sample dusk',.7],['fjord','Sample winter fjord',.3]]){const c=sample(k);S.refs.push({bm:c,name:nm,w,thumb:thumbURL(c)})}
+drawRefs();solve();
+})();
+</script>
+
+<script>
+(function(){var C=window.Capacitor,native=!!(C&&C.isNativePlatform&&C.isNativePlatform());
+if(!native&&'serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('sw.js').catch(function(){})}})();
+</script>
+</body>
+</html>
