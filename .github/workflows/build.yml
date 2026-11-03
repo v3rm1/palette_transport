@@ -1,0 +1,111 @@
+name: Build Palette Transport
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble web bundle
+        run: |
+          mkdir -p www
+          cp index.html icon.png www/
+          cat > www/manifest.webmanifest <<'JSON'
+          {
+            "name": "Palette Transport",
+            "short_name": "Palette",
+            "start_url": "./",
+            "scope": "./",
+            "display": "standalone",
+            "background_color": "#111418",
+            "theme_color": "#111418",
+            "icons": [{ "src": "icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }]
+          }
+          JSON
+          cat > www/sw.js <<JS
+          const CACHE='pt-${GITHUB_SHA::8}';
+          const SHELL=['./','./index.html','./icon.png','./manifest.webmanifest'];
+          self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)));self.skipWaiting()});
+          self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+          self.addEventListener('fetch',e=>{
+            if(e.request.method!=='GET')return;
+            const u=new URL(e.request.url),ok=u.origin===location.origin||/fonts\.(googleapis|gstatic)\.com$/.test(u.hostname);
+            if(!ok)return;
+            e.respondWith(caches.match(e.request).then(hit=>{
+              const net=fetch(e.request).then(r=>{if(r.ok||r.type==='opaque'){const cp=r.clone();caches.open(CACHE).then(c=>c.put(e.request,cp))}return r}).catch(()=>hit);
+              return hit||net;
+            }));
+          });
+          JS
+      - uses: actions/upload-artifact@v4
+        with: {name: www, path: www}
+      - uses: actions/upload-pages-artifact@v3
+        with: {path: www}
+
+  android:
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: www, path: www}
+      - uses: actions/setup-node@v4
+        with: {node-version: 20}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: 17}
+      - name: Create Capacitor Android project
+        run: |
+          mkdir cap && cd cap
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund @capacitor/core@6.2.3 @capacitor/cli@6.2.3 @capacitor/android@6.2.3 @capacitor/filesystem@6.0.4 @capacitor/share@6.0.4
+          cp -r ../www ./www
+          rm -f www/sw.js www/manifest.webmanifest
+          npx cap init "Palette Transport" no.vibecode.palettetransport --web-dir www
+          npx cap add android
+      - name: App icon
+        continue-on-error: true
+        run: |
+          cd cap
+          npm install --no-audit --no-fund @capacitor/assets@3.0.5
+          mkdir -p assets && cp ../icon.png assets/icon-only.png
+          npx capacitor-assets generate --android --iconBackgroundColor '#111418' --iconBackgroundColorDark '#111418' --splashBackgroundColor '#111418' --splashBackgroundColorDark '#111418'
+      - name: Sync and build debug APK
+        run: |
+          cd cap
+          npx cap sync android
+          cd android && chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/PaletteTransport.apk"
+      - uses: actions/upload-artifact@v4
+        with: {name: PaletteTransport-apk, path: PaletteTransport.apk}
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Palette Transport build ${{ github.run_number }}
+          body: Debug-signed APK. Allow installs from your browser to install.
+          files: PaletteTransport.apk
+          make_latest: true
+
+  pages:
+    needs: web
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
